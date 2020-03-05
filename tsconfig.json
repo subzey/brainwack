@@ -1,0 +1,32 @@
+{
+	"compilerOptions": {
+		"allowSyntheticDefaultImports": true,
+		"baseUrl": "./static",
+		"declaration": true,
+		"importHelpers": true,
+		"incremental": true,
+		"jsx": "react",
+		"lib": [
+			"esnext",
+		],
+		"noEmitOnError": true,
+		"noFallthroughCasesInSwitch": true,
+		"noImplicitReturns": true,
+		"noUnusedLocals": true,
+		"paths": {
+			"http://*": ["~/.cache/deno/deps/http/*"],
+			"https://*": ["~/.cache/deno/deps/https/*"]
+		},
+		"plugins": [ { "name": "deno_ls_plugin" } ],
+		"pretty": true,
+		"resolveJsonModule": true,
+		"strict": true,
+		"stripInternal": true,
+		"target": "esnext",
+		"tsBuildInfoFile": ".tsbuildinfo",
+		"typeRoots" : [
+			"./types"
+		],
+		"module": "esnext"
+	}
+}

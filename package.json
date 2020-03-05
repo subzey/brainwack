@@ -1,0 +1,7 @@
+{
+	"private": true,
+	"devDependencies": {
+		"deno_ls_plugin": "^0.1.0",
+		"typescript": "^3.8.3"
+	}
+}
