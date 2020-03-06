@@ -43,32 +43,34 @@ function genIo(deps: Dependencies, mem: MemoryLayout, indent=''): string {
 		s += addIdentation(`\
 (func $putChar (param $ptr i32)
 	;; Update pointer in iovec
-	(i32.store (i32.const ${mem.io!.iovec}) (get_local $ptr))
-	;; Call fd_write with that iovec
-	(call $fd_write
-		(i32.const 1) ;; fd, 1 = stdout
-		(i32.const ${mem.io!.iovec}) (i32.const 1) ;; *iovs, iovs_len
-		(i32.const ${mem.io!.rv}) ;; where to write written count
-	)
+	(i32.store (i32.const ${mem.io!.iovec}) (local.get $ptr))
 	;; Ignore errors
-	(drop)
+	(drop
+		;; Call fd_write with that iovec
+		(call $fd_write
+			(i32.const 1) ;; fd, 1 = stdout
+			(i32.const ${mem.io!.iovec}) (i32.const 1) ;; *iovs, iovs_len
+			(i32.const ${mem.io!.rv}) ;; where to write written count
+		)
+	)
 )\n\n`, indent);
 	}
 	if (deps.getChar) {
 		s += addIdentation(`\
 (func $getChar (param $ptr i32)
 	;; Default: -1
-	(i32.store (get_local $ptr) (i32.const -1))
+	(i32.store (local.get $ptr) (i32.const -1))
 	;; Update pointer in iovec
-	(i32.store (i32.const ${mem.io!.iovec}) (get_local $ptr))
-	;; Call fd_read with that iovec
-	(call $fd_write
-		(i32.const 0) ;; fd, 0 = stdin
-		(i32.const ${mem.io!.iovec}) (i32.const 1) ;; *iovs, iovs_len
-		(i32.const ${mem.io!.rv}) ;; where to write written count
-	)
+	(i32.store (i32.const ${mem.io!.iovec}) (local.get $ptr))
 	;; Ignore errors
-	(drop)
+	(drop
+		;; Call fd_read with that iovec
+		(call $fd_write
+			(i32.const 0) ;; fd, 0 = stdin
+			(i32.const ${mem.io!.iovec}) (i32.const 1) ;; *iovs, iovs_len
+			(i32.const ${mem.io!.rv}) ;; where to write written count
+		)
+	)
 )\n\n`, indent);
 	}
 	return s;
@@ -104,30 +106,30 @@ function getTree(instructions: Ast.Instruction[], mem: MemoryLayout, indent=''):
 	for (const instr of instructions) {
 		switch (instr.type) {
 			case 'input':
-				s += `${indent}(call $getChar (get_local $ptr))\n`;
+				s += `${indent}(call $getChar (local.get $ptr))\n`;
 				break;
 			case 'output':
-				s += `${indent}(call $putChar (get_local $ptr))\n`;
+				s += `${indent}(call $putChar (local.get $ptr))\n`;
 				break;
 			case 'set':
-				s += `${indent}(i32.store8 (get_local $ptr) (i32.const ${instr.value & 0xFF}))\n`;
+				s += `${indent}(i32.store8 (local.get $ptr) (i32.const ${instr.value & 0xFF}))\n`;
 				break;
 			case 'incr':
 				s += `\
-${indent}(i32.store8 (get_local $ptr)
-${indent}	(i32.add (i32.const ${instr.value & 0xFF}) (i32.load8_u (get_local $ptr)))
+${indent}(i32.store8 (local.get $ptr)
+${indent}	(i32.add (i32.const ${instr.value & 0xFF}) (i32.load8_u (local.get $ptr)))
 ${indent})\n`;
 				break;
 			case 'advptr':
 				s += `\
-${indent}(set_local $ptr
-${indent}	(i32.add (i32.const ${instr.value}) (get_local $ptr))
+${indent}(local.set $ptr
+${indent}	(i32.add (i32.const ${instr.value}) (local.get $ptr))
 ${indent})\n`;
 				break;
 			case 'loop':
 				s += `\
 ${indent}(block (loop
-${indent}	(br_if 1 (i32.eqz (i32.load8_u (get_local $ptr))))
+${indent}	(br_if 1 (i32.eqz (i32.load8_u (local.get $ptr))))
 \n`;
 				s += getTree(instr.body, mem, indent + '\t');
 				s += `\
