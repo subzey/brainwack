@@ -14,9 +14,9 @@ if (args.help || args._.length !== 1) {
 }
 
 async function main() {
-	Deno.stdout.write(new TextEncoder().encode(
+	console.log(
 		compile(await readFileStr(args._[0]))
-	));
+	);
 }
 
 main();
