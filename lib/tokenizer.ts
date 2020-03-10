@@ -1,15 +1,17 @@
 export type Token = [
+	/** Token literal */
 	'+' | '-' | '<' | '>' | ',' | '.' | '[' | ']',
+	/** Line number. Zero based! */
 	number?,
+	/** Column number. Zero based! */
 	number?
 ];
 
 export function* tokenize(source: string): IterableIterator<Token> {
-	let lineno = 1;
+	let lineno = 0;
 	let colno = 0;
 
 	for (const ch of source) {
-		colno++;
 		switch (ch) {
 			case '+':
 			case '-':
@@ -26,5 +28,6 @@ export function* tokenize(source: string): IterableIterator<Token> {
 				lineno++;
 				colno = 0;
 		}
+		colno++;
 	}
 }

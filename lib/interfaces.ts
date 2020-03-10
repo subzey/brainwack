@@ -83,3 +83,16 @@ export interface MemoryLayout {
 		rv: number;
 	}
 }
+
+export type SourceMappingSegment = [
+	/** Generated column */
+	number,
+	/** Original file index */
+	number,
+	/** Original line number */
+	number,
+	/** Original column number */
+	number,
+];
+
+export type SourceMapping = Record</** Generated lineno */ number, SourceMappingSegment[]>;

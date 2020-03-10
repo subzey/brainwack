@@ -1,142 +1,267 @@
-import type { Ast, Dependencies, MemoryLayout } from './interfaces.ts';
+import type { Ast, Dependencies, MemoryLayout, Token, SourceMapping } from './interfaces.ts';
 
-export function generateCode(program: Ast.Program): string {
-	let s = '(module\n';
-	s += genImports(program.deps!, '\t');
-	s += genMemory(program.mem!, '\t');
-	s += genIo(program.deps!, program.mem!, '\t');
-	s += genStart(program, program.mem!, '\t');
-	s += getData(program.mem!.snapshot, '\t');
-	s += ')\n';
-	return s;
-}
+class OutputGenerator {
+	private readonly _indentationStr: string;
+	private readonly _program: Readonly<Ast.Program>;
+	private readonly _mem: Readonly<MemoryLayout>;
+	private readonly _deps: Readonly<Dependencies>;
+	private _res!: string;
+	private _sourceMapping!: SourceMapping;
+	private _lineno!: number;
+	private _indentationLevel!: number;
 
-function genImports(deps: Dependencies, indent=''): string {
-	let s ='';
-	if (deps.fdRead) {
-		s += indent + '(func $fd_read (import "wasi_unstable" "fd_read") (param i32 i32 i32 i32) (result i32))\n';
+	public constructor(program: Ast.Program, indentationStr='\u0020\u0020') {
+		this._indentationStr = indentationStr;
+		if (!program.mem) {
+			throw new Error('Memory is not laid out');
+		}
+		if (!program.deps) {
+			throw new Error('Dependencies are not resolved');
+		}
+		this._program = program;
+		this._deps = program.deps;
+		this._mem = program.mem;
 	}
-	if (deps.fdWrite) {
-		s += indent + '(func $fd_write (import "wasi_unstable" "fd_write") (param i32 i32 i32 i32) (result i32))\n';
+
+	public generateCode(): { result: string, map: SourceMapping } {
+		this._res = '';
+		this._sourceMapping = Object.create(null);
+		this._lineno = 0;
+		this._indentationLevel = 0;
+
+		this._line(`(module`);
+		this._indent(+1);
+		this._genImports();
+		this._genMemory();
+		this._genIo();
+		this._genStart();
+		this._genData();
+		this._indent(-1);
+		this._line(`)`);
+
+		return { result: this._res, map: this._sourceMapping };
 	}
-	if (deps.procExit) {
-		s += indent + '(func $proc_exit (import "wasi_unstable" "proc_exit") (param i32))\n';
+
+	private _indent(indentationDelta: number): void {
+		this._indentationLevel += indentationDelta;
 	}
-	if (s !== '') {
-		s += indent + '\n';
-	}
-	return s;
-}
 
-function genMemory(mem: MemoryLayout, indent=''): string {
-	const pages = Math.ceil(mem.len / 0x10000);
-	return indent + `(memory $mem (export "memory") ${pages})\n\n`;
-}
+	/**
+	 * Add a line to the output and generate a mapping.
+	 */
+	protected _line(str: string, sourceToken: Token | null = null): void {
+		const indentation = this._indentationStr.repeat(this._indentationLevel);
 
-function addIdentation(str: string, indent: string) {
-	return str.replace(/^(?=.)/mg, '\t');
-}
+		const lines = str.split('\n').map(s => s.trim()).filter(Boolean);
 
-function genIo(deps: Dependencies, mem: MemoryLayout, indent=''): string {
-	let s = '';
-	if (deps.putChar) {
-		s += addIdentation(`\
-(func $putChar (param $ptr i32)
-	;; Update pointer in iovec
-	(i32.store (i32.const ${mem.io!.iovec}) (local.get $ptr))
-	;; Ignore errors
-	(drop
-		;; Call fd_write with that iovec
-		(call $fd_write
-			(i32.const 1) ;; fd, 1 = stdout
-			(i32.const ${mem.io!.iovec}) (i32.const 1) ;; *iovs, iovs_len
-			(i32.const ${mem.io!.rv}) ;; where to write written count
-		)
-	)
-)\n\n`, indent);
-	}
-	if (deps.getChar) {
-		s += addIdentation(`\
-(func $getChar (param $ptr i32)
-	;; Default: -1
-	(i32.store (local.get $ptr) (i32.const -1))
-	;; Update pointer in iovec
-	(i32.store (i32.const ${mem.io!.iovec}) (local.get $ptr))
-	;; Ignore errors
-	(drop
-		;; Call fd_read with that iovec
-		(call $fd_write
-			(i32.const 0) ;; fd, 0 = stdin
-			(i32.const ${mem.io!.iovec}) (i32.const 1) ;; *iovs, iovs_len
-			(i32.const ${mem.io!.rv}) ;; where to write written count
-		)
-	)
-)\n\n`, indent);
-	}
-	return s;
-}
+		if (!lines.length) {
+			return;
+		}
 
+		if (sourceToken && sourceToken[1] !== undefined && sourceToken[2] !== undefined) {
+			if (!this._sourceMapping[this._lineno]) {
+				this._sourceMapping[this._lineno] = [];
+			}
+			this._sourceMapping[this._lineno].push([
+				indentation.length,
+				0,
+				sourceToken[1],
+				sourceToken[2],
+			]);
+		}
 
-const reNeedsEscape = /[\u0000-\u001f"\\\u007f-\uffff]/g;
-function getData(uia: Uint8Array, indent=''): string {
-	const serialized = String.fromCharCode(...uia).replace(reNeedsEscape, (ch) => {
-		return '\\' + ch.charCodeAt(0).toString(16).padStart(2, '0');
-	});
-
-	return addIdentation(`\
-(data (i32.const ${uia.byteOffset})
-	"${serialized}"
-)\n`, indent);
-}
-
-
-function genStart(program: Ast.Program, mem: MemoryLayout, indent=''): string {
-	let s ='';
-	s += `${indent}(func (export "_start")\n`;
-	if (program.body.length) {
-		s += `${indent}\t(local $ptr i32)\n`;
-		s += getTree(program.body, mem, indent + '\t');
-	}
-	s += `${indent})\n\n`;
-	return s;
-}
-
-function getTree(instructions: Ast.Instruction[], mem: MemoryLayout, indent=''): string {
-	let s = '';
-	for (const instr of instructions) {
-		switch (instr.type) {
-			case 'input':
-				s += `${indent}(call $getChar (local.get $ptr))\n`;
-				break;
-			case 'output':
-				s += `${indent}(call $putChar (local.get $ptr))\n`;
-				break;
-			case 'set':
-				s += `${indent}(i32.store8 (local.get $ptr) (i32.const ${instr.value & 0xFF}))\n`;
-				break;
-			case 'incr':
-				s += `\
-${indent}(i32.store8 (local.get $ptr)
-${indent}	(i32.add (i32.const ${instr.value & 0xFF}) (i32.load8_u (local.get $ptr)))
-${indent})\n`;
-				break;
-			case 'advptr':
-				s += `\
-${indent}(local.set $ptr
-${indent}	(i32.add (i32.const ${instr.value}) (local.get $ptr))
-${indent})\n`;
-				break;
-			case 'loop':
-				s += `\
-${indent}(block (loop
-${indent}	(br_if 1 (i32.eqz (i32.load8_u (local.get $ptr))))
-\n`;
-				s += getTree(instr.body, mem, indent + '\t');
-				s += `\
-${indent}	(br 0)
-${indent}))\n`
+		for (const line of lines) {
+			this._res += `${indentation}${line}\n`;
+			this._lineno++;
 		}
 	}
 
-	return s;
+	protected _genImports(): void {
+		if (this._deps.fdRead) {
+			this._line(`(func $fd_read (i` + `mport "wasi_unstable" "fd_read") (param i32 i32 i32 i32) (result i32))`);
+		}
+		if (this._deps.fdWrite) {
+			this._line(`(func $fd_write (i` + `mport "wasi_unstable" "fd_write") (param i32 i32 i32 i32) (result i32))`);
+		}
+		if (this._deps.procExit) {
+			this._line(`(func $proc_exit (i` + `mport "wasi_unstable" "proc_exit") (param i32))`);
+		}
+	}
+
+	protected _genMemory(): void {
+		const pages = Math.ceil(this._mem.len / 0x10000);
+		this._line(`(memory $mem (export "memory") ${pages})`);
+	}
+
+	protected _genIo(): void {
+		if (this._deps.putChar) {
+			const iovec = '0x' + this._mem.io!.iovec.toString(16);
+			const rv = '0x' + this._mem.io!.rv.toString(16);
+			this._line(`(func $putChar (param $ptr i32)`);
+			this._indent(+1);
+			this._line(`
+				;; Update pointer in iovec
+				(i32.store (i32.const ${iovec}) (local.get $ptr))
+				;; Ignore errors
+				(drop
+			`);
+			this._indent(+1);
+			this._line(`
+				;; Call fd_write with that iovec
+				(call $fd_write
+			`);
+			this._indent(+1);
+			this._line(`
+				(i32.const 1) ;; fd, 1 = stdout
+				(i32.const ${iovec}) (i32.const 1) ;; *iovs, iovs_len
+				(i32.const ${rv}) ;; where to write written count
+			`);
+			this._indent(-1);
+			this._line(`)`);
+			this._indent(-1);
+			this._line(`)`);
+			this._indent(-1);
+			this._line(`)`);
+		}
+		if (this._deps.getChar) {
+			const iovec = '0x' + this._mem.io!.iovec.toString(16);
+			const rv = '0x' + this._mem.io!.rv.toString(16);
+			this._line(`(func $getChar (param $ptr i32)`);
+			this._indent(+1);
+			this._line(`
+				;; Default: -1
+				(i32.store (local.get $ptr) (i32.const -1))
+				;; Update pointer in iovec
+				(i32.store (i32.const ${iovec}) (local.get $ptr))
+				;; Ignore errors
+				(drop
+			`);
+			this._indent(+1);
+			this._line(`
+				;; Call fd_read with that iovec
+				(call $fd_write
+			`);
+			this._indent(+1);
+			this._line(`
+				(i32.const 0) ;; fd, 0 = stdin
+				(i32.const ${iovec}) (i32.const 1) ;; *iovs, iovs_len
+				(i32.const ${rv}) ;; where to write written count
+			`);
+			this._indent(-1);
+			this._line(`)`);
+			this._indent(-1);
+			this._line(`)`);
+			this._indent(-1);
+			this._line(`)`);
+		}
+	}
+
+	protected _genData() {
+		if (this._mem.snapshot.byteLength === 0) {
+			return;
+		}
+		this._line(`(data (i32.const 0x${this._mem.snapshot.byteOffset.toString(16)})`);
+		this._indent(+1);
+		let min = this._mem.snapshot.byteOffset;
+		let max = min + this._mem.snapshot.byteLength;
+		for (let hi = min - min % 16; hi < max; hi += 16) {
+			const offset = hi.toString(16).padStart(8, '0');
+			let leadingPadding = '';
+			let trailingPadding = '';
+			let contents = '';
+			let plaintext = '';
+			for (let lo = 0; lo < 16; lo++) {
+				const ptr = hi + lo;
+				if (ptr < min) {
+					leadingPadding += '\u0020\u0020\u0020';
+					plaintext += ' ';
+				} else if (ptr >= max) {
+					trailingPadding += '\u0020\u0020\u0020';
+				} else {
+					const v = this._mem.snapshot[ptr - min];
+					contents += '\\' + v.toString(16).padStart(2, '0');
+					if (v > 0x1F && v < 0x7F) {
+						plaintext += String.fromCharCode(v);
+					} else {
+						plaintext += '.';
+					}
+				}
+			}
+			this._line(`${leadingPadding}"${contents}"${trailingPadding} ;; ${offset}: ${plaintext}`);
+		}
+		this._indent(-1);
+		this._line(`)`);
+	}
+
+	protected _genStart(): void {
+		this._line(`(func (export "_start")`);
+		this._indent(+1);
+		this._line(`(local $ptr i32)`);
+		this._genSubtree(this._program.body);
+		this._indent(-1);
+		this._line(`)`);
+	}
+
+	protected _genSubtree(instructions: Ast.Instruction[]): void {
+		for (const instr of instructions) {
+			switch (instr.type) {
+				case 'input':
+					this._line(`(call $getChar (local.get $ptr))`, instr.tokens[0]);
+					break;
+				case 'output':
+					this._line(`(call $putChar (local.get $ptr))`, instr.tokens[0]);
+					break;
+				case 'set':
+					this._line(`(i32.store8 (local.get $ptr) (i32.const ${this._lebValue(instr.value)}))`, instr.tokens[0]);
+					break;
+				case 'incr':
+					this._line(`(i32.store8 (local.get $ptr)`, instr.tokens[0]);
+					this._indent(+1);
+					this._line(`(i32.add (i32.load8_u (local.get $ptr)) (i32.const ${this._lebValue(instr.value)}))`);
+					this._indent(-1);
+					this._line(`)`);
+					break;
+				case 'advptr':
+					this._line(`(local.set $ptr`, instr.tokens[0]);
+					this._indent(+1);
+					this._line(`(i32.add (local.get $ptr) (i32.const ${instr.value}))`);
+					this._indent(-1);
+					this._line(`)`);
+					break;
+				case 'loop':
+					this._line(`(loop`, instr.tokens[0]);
+					this._indent(+1);
+					this._line(`(if (i32.load8_u (local.get $ptr)) (then`);
+					this._indent(+1);
+					this._genSubtree(instr.body);
+					// Supply the last token, only if it's not the same as the first one
+					this._line(`(br 1)`, instr.tokens.length > 1 ? instr.tokens[instr.tokens.length - 1] : undefined);
+					this._indent(-1);
+					this._line(`))`);
+					this._indent(-1);
+					this._line(`)`);
+					break;
+				default:
+					throw new Error('unreachable');
+			}
+		}
+	}
+
+	protected _lebValue(v: number): string {
+		const abs = v & 0xFF;
+		if (abs >= 192) {
+			// A byte value would be more compact as a negative number
+			return String(abs - 256);
+		} else {
+			// A byte value would be more compact as a positive number
+			return String(abs);
+		}
+	}
+}
+
+export function generateCode(program: Ast.Program): string {
+	const gen = new OutputGenerator(program);
+	const { result, map } = gen.generateCode();
+	console.error(JSON.stringify(map, null, 2));
+	return result;
 }

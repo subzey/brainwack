@@ -50,7 +50,11 @@ export function parse(tokens: Iterable<Token>): Ast.Program {
 					containerStack.pop();
 					container.tokens.push(token);
 				} else {
-					throw new SyntaxError(`']' with no corresponding '[' at line ${ token[1] ?? '(unknown)' }, column ${ token[2] ?? '(unknown)' }`);
+					// Tokenizer returned a zero-based location.
+					// We need to convert it into a human-readable one-based.
+					const lineno = token[1] !== undefined ? token[1] + 1 : '(unknown)';
+					const colno = token[2] !== undefined ? token[2] + 1 : '(unknown)';
+					throw new SyntaxError(`']' with no corresponding '[' at line ${ lineno }, column ${ colno }`);
 				}
 				break;
 			default:
