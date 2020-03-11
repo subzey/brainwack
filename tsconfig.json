@@ -13,11 +13,6 @@
 		"noFallthroughCasesInSwitch": true,
 		"noImplicitReturns": true,
 		"noUnusedLocals": true,
-		"paths": {
-			"http://*": ["~/.cache/deno/deps/http/*"],
-			"https://*": ["~/.cache/deno/deps/https/*"]
-		},
-		"plugins": [ { "name": "deno_ls_plugin" } ],
 		"pretty": true,
 		"resolveJsonModule": true,
 		"strict": true,
