@@ -113,7 +113,7 @@ The corresponding WA code is:
 
 Unfortunately, the WebAssembly spec doesn't define a standardized way a module would input or output the data.
 
-Luckily, (WASI)(https://wasi.dev/) does.
+Luckily, [WASI](https://wasi.dev/) does.
 
 The code for `.` is... not so easy to grasp, but it's not so hard.
 
@@ -180,8 +180,6 @@ The optimized merges these instructions into a single one. That instruction cann
 
 ### Dependency Resolver
 
-_Currently in a messy condition_
-
 Analyzes the AST and extracts the information for the code generator.
 
 For example, we don't have to import a `fd_read` from WASI if a program doesn't read anything.
@@ -190,8 +188,8 @@ For example, we don't have to import a `fd_read` from WASI if a program doesn't 
 
 Lays out the WA memory based on program dependencies. All those Iovecs and pointers should be assigned some values. It happens here.
 
-### Code Generation
-
-_Currently in a messy condition_
+### Code Generation & Source Mapping
 
 Generates a WebAssembly code based on everything happened before.
+
+Plus, a source map, [like this one](https://sokra.github.io/source-map-visualization/#base64,KG1vZHVsZQogIChmdW5jICRmZF93cml0ZSAoaW1wb3J0ICJ3YXNpX3Vuc3RhYmxlIiAiZmRfd3JpdGUiKSAocGFyYW0gaTMyIGkzMiBpMzIgaTMyKSAocmVzdWx0IGkzMikpCiAgKGZ1bmMgJHByb2NfZXhpdCAoaW1wb3J0ICJ3YXNpX3Vuc3RhYmxlIiAicHJvY19leGl0IikgKHBhcmFtIGkzMikpCiAgKG1lbW9yeSAkbWVtIChleHBvcnQgIm1lbW9yeSIpIDEpCiAgKGZ1bmMgJHB1dENoYXIgKHBhcmFtICRwdHIgaTMyKQogICAgOzsgVXBkYXRlIHBvaW50ZXIgaW4gaW92ZWMKICAgIChpMzIuc3RvcmUgKGkzMi5jb25zdCAweDc1MzApIChsb2NhbC5nZXQgJHB0cikpCiAgICA7OyBJZ25vcmUgZXJyb3JzCiAgICAoZHJvcAogICAgICA7OyBDYWxsIGZkX3dyaXRlIHdpdGggdGhhdCBpb3ZlYwogICAgICAoY2FsbCAkZmRfd3JpdGUKICAgICAgICAoaTMyLmNvbnN0IDEpIDs7IGZkLCAxID0gc3Rkb3V0CiAgICAgICAgKGkzMi5jb25zdCAweDc1MzApIChpMzIuY29uc3QgMSkgOzsgKmlvdnMsIGlvdnNfbGVuCiAgICAgICAgKGkzMi5jb25zdCAweDc1MzgpIDs7IHdoZXJlIHRvIHdyaXRlIHdyaXR0ZW4gY291bnQKICAgICAgKQogICAgKQogICkKICAoZnVuYyAoZXhwb3J0ICJfc3RhcnQiKQogICAgKGxvY2FsICRwdHIgaTMyKQogICAgKGkzMi5zdG9yZTggKGxvY2FsLmdldCAkcHRyKQogICAgICAoaTMyLmFkZCAoaTMyLmxvYWQ4X3UgKGxvY2FsLmdldCAkcHRyKSkgKGkzMi5jb25zdCAzKSkKICAgICkKICAgIChsb29wCiAgICAgIChpZiAoaTMyLmxvYWQ4X3UgKGxvY2FsLmdldCAkcHRyKSkgKHRoZW4KICAgICAgICAoaTMyLnN0b3JlOCAobG9jYWwuZ2V0ICRwdHIpCiAgICAgICAgICAoaTMyLmFkZCAoaTMyLmxvYWQ4X3UgKGxvY2FsLmdldCAkcHRyKSkgKGkzMi5jb25zdCAtMSkpCiAgICAgICAgKQogICAgICAgIChjYWxsICRwdXRDaGFyIChsb2NhbC5nZXQgJHB0cikpCiAgICAgICAgKGJyIDEpCiAgICAgICkpCiAgICApCiAgKQogIChkYXRhICRtZW0gKGkzMi5jb25zdCAweDc1MzQpCiAgICAiXDAxIiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA7OyAwMDAwNzUzMDogICAgIC4KICApCikK,eyJ2ZXJzaW9uIjozLCJzb3VyY2VzIjpbImJyYWluZnVjay1zb3VyY2UuYmYiXSwic291cmNlc0NvbnRlbnQiOlsiKysrWy0uXSJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiOzs7Ozs7Ozs7Ozs7Ozs7Ozs7O0lBQUE7TUFBQTtJQUFBO0lBQUc7TUFBQTtRQUFDO1VBQUE7UUFBQTtRQUFDO1FBQUM7TUFBSDtJQUFBIiwiZmlsZSI6ImV4YW1wbGUuanMifQ==,KysrWy0uXQ==).
