@@ -1,6 +1,10 @@
 import type { Ast, Dependencies } from './interfaces.ts';
 
-export function resolveDependencies(program: Ast.Program): void {
+export interface Options {
+	unsafeMemory: boolean;
+}
+
+export function resolveDependencies(program: Ast.Program, options: Partial<Options> = {}): void {
 	const deps = {
 		runtimeMem: false,
 		getChar: false,
@@ -12,7 +16,7 @@ export function resolveDependencies(program: Ast.Program): void {
 	}
 	fillDeps(program.body, deps);
 
-	if (deps.runtimeMem) {
+	if (deps.runtimeMem && !options.unsafeMemory) {
 		deps.memErrMsg = true;
 	}
 
@@ -27,8 +31,6 @@ export function resolveDependencies(program: Ast.Program): void {
 	if (deps.putChar) {
 		deps.fdWrite = true;
 	}
-
-	deps.memErrMsg = false;
 
 	program.deps = deps;
 }

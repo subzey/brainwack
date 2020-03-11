@@ -154,6 +154,29 @@ class OutputGenerator {
 			this._indent(-1);
 			this._line(`)`);
 		}
+		if (this._deps.memErrMsg) {
+			const iovec = '0x' + this._mem.memErrMsg!.iovec.toString(16);
+			const rv = '0x' + this._mem.memErrMsg!.rv.toString(16);
+			this._line(`(func $memoryError`);
+			this._indent(+1);
+			this._line(`;; Report about the invalid memory access and exit`);
+			this._line(`(drop`);
+			this._indent(+1);
+			this._line(`(call $fd_write`);
+			this._indent(+1);
+			this._line(`
+				(i32.const 2) ;; fd, 2 = stderr
+				(i32.const ${iovec}) (i32.const 1) ;; *iovs, iovs_len
+				(i32.const ${rv}) ;; where to write written count
+			`);
+			this._indent(-1);
+			this._line(`)`);
+			this._indent(-1);
+			this._line(`)`);
+			this._line(`(call $proc_exit (i32.const 1))`);
+			this._indent(-1);
+			this._line(`)`);
+		}
 	}
 
 	protected _genData() {
@@ -222,11 +245,19 @@ class OutputGenerator {
 					this._line(`)`, instr.tokens);
 					break;
 				case 'advptr':
+					if (this._deps.memErrMsg && instr.value < 0) {
+						const minPtr = this._mem.runtimeMem!.start;
+						this._line(`(if (i32.gt_u (i32.const ${minPtr - instr.value}) (local.get $ptr)) (then (call $memoryError)))`, instr.tokens);
+					}
 					this._line(`(local.set $ptr`, instr.tokens);
 					this._indent(+1);
 					this._line(`(i32.add (local.get $ptr) (i32.const ${instr.value}))`, instr.tokens);
 					this._indent(-1);
 					this._line(`)`, instr.tokens);
+					if (this._deps.memErrMsg && instr.value > 0) {
+						const maxPtr = this._mem.runtimeMem!.start + this._mem.runtimeMem!.len - 1;
+						this._line(`(if (i32.gt_u (local.get $ptr) (i32.const ${maxPtr})) (then (call $memoryError)))`, instr.tokens);
+					}
 					break;
 				case 'loop':
 					this._line(`(loop`, instr.tokens.slice(0, -1));

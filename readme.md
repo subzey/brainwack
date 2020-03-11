@@ -4,6 +4,21 @@
 
 In case you have a production grade Brainfuck programs, of course.
 
+## How to Run It
+
+BrainWAck is a [deno](https://deno.land/) script.
+
+Run `deno index.ts --help` for more info.
+
+The result is a WAT (WebAssembly Text) file. Some WASI runtimes like [wasmer](https://wasmer.io/) or [wasmtime](https://wasmtime.dev/) can execute WA both in text and binary format.
+
+```sh
+wasmer run the_output_file.wat
+wasmtime run the_output_file.wat
+```
+
+Other runtimes may accept only the binary format. Try [wat2wasm](https://github.com/WebAssembly/wabt) or [wasm-opt](https://github.com/WebAssembly/binaryen).
+
 ## The Gist
 
 [Brainfuck](https://esolangs.org/wiki/Brainfuck) is an esoteric programming language with a very small instruction set.
