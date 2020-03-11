@@ -1,4 +1,4 @@
-import type { Ast, Dependencies, MemoryLayout, Token, SourceMapping } from './interfaces.ts';
+import type { Ast, Dependencies, MemoryLayout, Token, RawMapping, CodeGenReturn } from './interfaces.ts';
 
 class OutputGenerator {
 	private readonly _indentationStr: string;
@@ -6,7 +6,7 @@ class OutputGenerator {
 	private readonly _mem: Readonly<MemoryLayout>;
 	private readonly _deps: Readonly<Dependencies>;
 	private _res!: string;
-	private _sourceMapping!: SourceMapping;
+	private _rawMapping!: RawMapping;
 	private _lineno!: number;
 	private _indentationLevel!: number;
 
@@ -23,9 +23,9 @@ class OutputGenerator {
 		this._mem = program.mem;
 	}
 
-	public generateCode(): { result: string, map: SourceMapping } {
+	public generateCode(): CodeGenReturn {
 		this._res = '';
-		this._sourceMapping = Object.create(null);
+		this._rawMapping = [];
 		this._lineno = 0;
 		this._indentationLevel = 0;
 
@@ -39,7 +39,10 @@ class OutputGenerator {
 		this._indent(-1);
 		this._line(`)`);
 
-		return { result: this._res, map: this._sourceMapping };
+		return {
+			result: this._res,
+			rawMapping: this._rawMapping
+		};
 	}
 
 	private _indent(indentationDelta: number): void {
@@ -49,7 +52,7 @@ class OutputGenerator {
 	/**
 	 * Add a line to the output and generate a mapping.
 	 */
-	protected _line(str: string, sourceToken: Token | null = null): void {
+	protected _line(str: string, sourceTokens: Token[] | null = null): void {
 		const indentation = this._indentationStr.repeat(this._indentationLevel);
 
 		const lines = str.split('\n').map(s => s.trim()).filter(Boolean);
@@ -58,16 +61,13 @@ class OutputGenerator {
 			return;
 		}
 
-		if (sourceToken && sourceToken[1] !== undefined && sourceToken[2] !== undefined) {
-			if (!this._sourceMapping[this._lineno]) {
-				this._sourceMapping[this._lineno] = [];
+		if (sourceTokens) {
+			for (const sourceToken of sourceTokens) {
+				if (!this._rawMapping[this._lineno]) {
+					this._rawMapping[this._lineno] = [];
+				}
+				this._rawMapping[this._lineno].push([indentation.length, sourceToken]);
 			}
-			this._sourceMapping[this._lineno].push([
-				indentation.length,
-				0,
-				sourceToken[1],
-				sourceToken[2],
-			]);
 		}
 
 		for (const line of lines) {
@@ -160,7 +160,7 @@ class OutputGenerator {
 		if (this._mem.snapshot.byteLength === 0) {
 			return;
 		}
-		this._line(`(data (i32.const 0x${this._mem.snapshot.byteOffset.toString(16)})`);
+		this._line(`(data $mem (i32.const 0x${this._mem.snapshot.byteOffset.toString(16)})`);
 		this._indent(+1);
 		let min = this._mem.snapshot.byteOffset;
 		let max = min + this._mem.snapshot.byteLength;
@@ -206,40 +206,40 @@ class OutputGenerator {
 		for (const instr of instructions) {
 			switch (instr.type) {
 				case 'input':
-					this._line(`(call $getChar (local.get $ptr))`, instr.tokens[0]);
+					this._line(`(call $getChar (local.get $ptr))`, instr.tokens);
 					break;
 				case 'output':
-					this._line(`(call $putChar (local.get $ptr))`, instr.tokens[0]);
+					this._line(`(call $putChar (local.get $ptr))`, instr.tokens);
 					break;
 				case 'set':
-					this._line(`(i32.store8 (local.get $ptr) (i32.const ${this._lebValue(instr.value)}))`, instr.tokens[0]);
+					this._line(`(i32.store8 (local.get $ptr) (i32.const ${this._lebValue(instr.value)}))`, instr.tokens);
 					break;
 				case 'incr':
-					this._line(`(i32.store8 (local.get $ptr)`, instr.tokens[0]);
+					this._line(`(i32.store8 (local.get $ptr)`, instr.tokens);
 					this._indent(+1);
-					this._line(`(i32.add (i32.load8_u (local.get $ptr)) (i32.const ${this._lebValue(instr.value)}))`);
+					this._line(`(i32.add (i32.load8_u (local.get $ptr)) (i32.const ${this._lebValue(instr.value)}))`, instr.tokens);
 					this._indent(-1);
-					this._line(`)`);
+					this._line(`)`, instr.tokens);
 					break;
 				case 'advptr':
-					this._line(`(local.set $ptr`, instr.tokens[0]);
+					this._line(`(local.set $ptr`, instr.tokens);
 					this._indent(+1);
-					this._line(`(i32.add (local.get $ptr) (i32.const ${instr.value}))`);
+					this._line(`(i32.add (local.get $ptr) (i32.const ${instr.value}))`, instr.tokens);
 					this._indent(-1);
-					this._line(`)`);
+					this._line(`)`, instr.tokens);
 					break;
 				case 'loop':
-					this._line(`(loop`, instr.tokens[0]);
+					this._line(`(loop`, instr.tokens.slice(0, -1));
 					this._indent(+1);
-					this._line(`(if (i32.load8_u (local.get $ptr)) (then`);
+					this._line(`(if (i32.load8_u (local.get $ptr)) (then`, instr.tokens.slice(0, -1));
 					this._indent(+1);
 					this._genSubtree(instr.body);
 					// Supply the last token, only if it's not the same as the first one
-					this._line(`(br 1)`, instr.tokens.length > 1 ? instr.tokens[instr.tokens.length - 1] : undefined);
+					this._line(`(br 1)`, instr.tokens.slice(-1));
 					this._indent(-1);
-					this._line(`))`);
+					this._line(`))`, instr.tokens.slice(-1));
 					this._indent(-1);
-					this._line(`)`);
+					this._line(`)`, instr.tokens.slice(-1));
 					break;
 				default:
 					throw new Error('unreachable');
@@ -259,9 +259,7 @@ class OutputGenerator {
 	}
 }
 
-export function generateCode(program: Ast.Program): string {
+export function generateCode(program: Ast.Program): CodeGenReturn {
 	const gen = new OutputGenerator(program);
-	const { result, map } = gen.generateCode();
-	console.error(JSON.stringify(map, null, 2));
-	return result;
+	return gen.generateCode();
 }

@@ -1,18 +1,11 @@
-export type Token = [
-	/** Token literal */
-	'+' | '-' | '<' | '>' | ',' | '.' | '[' | ']',
-	/** Line number. Zero based! */
-	number?,
-	/** Column number. Zero based! */
-	number?
-];
+import type { Token } from './interfaces.ts';
 
 export function* tokenize(source: string): IterableIterator<Token> {
-	let lineno = 0;
-	let colno = 0;
+	let sourceLine = 0;
+	let sourceCol = 0;
 
-	for (const ch of source) {
-		switch (ch) {
+	for (const literal of source) {
+		switch (literal) {
 			case '+':
 			case '-':
 			case '<':
@@ -21,13 +14,15 @@ export function* tokenize(source: string): IterableIterator<Token> {
 			case '.':
 			case '[':
 			case ']':
-				yield [ch, lineno, colno];
+				yield { literal: literal, sourceLine, sourceCol };
 				break;
-
-			case '\n':
-				lineno++;
-				colno = 0;
 		}
-		colno++;
+
+		if (literal === '\n') {
+			sourceLine++;
+			sourceCol = 0;
+		} else {
+			sourceCol++;
+		}
 	}
 }

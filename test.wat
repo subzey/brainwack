@@ -1,77 +1,36 @@
 (module
-	(func $fd_write (import "wasi_unstable" "fd_write") (param i32 i32 i32 i32) (result i32))
-	(func $proc_exit (import "wasi_unstable" "proc_exit") (param i32))
-	
-	(memory $mem (export "memory") 1)
-
-	(func $putChar (param $ptr i32)
-		;; Update pointer in iovec
-		(i32.store (i32.const 30000) (get_local $ptr))
-		;; Call fd_write with that iovec
-		(call $fd_write
-			(i32.const 1) ;; fd, 1 = stdout
-			(i32.const 30000) (i32.const 1) ;; *iovs, iovs_len
-			(i32.const 30008) ;; where to write written count
-		)
-		;; Ignore errors
-		(drop)
-	)
-
-	(func (export "_start")
-		(local $ptr i32)
-		(i32.store8 (get_local $ptr)
-			(i32.add (i32.const 2) (i32.load8_u (get_local $ptr)))
-		)
-		(set_local $ptr
-			(i32.add (i32.const 1) (get_local $ptr))
-		)
-		(i32.store8 (get_local $ptr)
-			(i32.add (i32.const 5) (i32.load8_u (get_local $ptr)))
-		)
-		(block (loop
-			(br_if 1 (i32.eqz (i32.load8_u (get_local $ptr))))
-
-			(set_local $ptr
-				(i32.add (i32.const -1) (get_local $ptr))
-			)
-			(i32.store8 (get_local $ptr)
-				(i32.add (i32.const 1) (i32.load8_u (get_local $ptr)))
-			)
-			(set_local $ptr
-				(i32.add (i32.const 1) (get_local $ptr))
-			)
-			(i32.store8 (get_local $ptr)
-				(i32.add (i32.const 255) (i32.load8_u (get_local $ptr)))
-			)
-			(br 0)
-		))
-		(i32.store8 (get_local $ptr)
-			(i32.add (i32.const 8) (i32.load8_u (get_local $ptr)))
-		)
-		(block (loop
-			(br_if 1 (i32.eqz (i32.load8_u (get_local $ptr))))
-
-			(set_local $ptr
-				(i32.add (i32.const -1) (get_local $ptr))
-			)
-			(i32.store8 (get_local $ptr)
-				(i32.add (i32.const 6) (i32.load8_u (get_local $ptr)))
-			)
-			(set_local $ptr
-				(i32.add (i32.const 1) (get_local $ptr))
-			)
-			(i32.store8 (get_local $ptr)
-				(i32.add (i32.const 255) (i32.load8_u (get_local $ptr)))
-			)
-			(br 0)
-		))
-		(set_local $ptr
-			(i32.add (i32.const -1) (get_local $ptr))
-		)
-		(call $putChar (get_local $ptr))
-	)
-
-	(data (i32.const 30004)
-		"\01"
-	)
+  (func $fd_write (import "wasi_unstable" "fd_write") (param i32 i32 i32 i32) (result i32))
+  (func $proc_exit (import "wasi_unstable" "proc_exit") (param i32))
+  (memory $mem (export "memory") 1)
+  (func $putChar (param $ptr i32)
+    ;; Update pointer in iovec
+    (i32.store (i32.const 0x7530) (local.get $ptr))
+    ;; Ignore errors
+    (drop
+      ;; Call fd_write with that iovec
+      (call $fd_write
+        (i32.const 1) ;; fd, 1 = stdout
+        (i32.const 0x7530) (i32.const 1) ;; *iovs, iovs_len
+        (i32.const 0x7538) ;; where to write written count
+      )
+    )
+  )
+  (func (export "_start")
+    (local $ptr i32)
+    (i32.store8 (local.get $ptr)
+      (i32.add (i32.load8_u (local.get $ptr)) (i32.const 3))
+    )
+    (loop
+      (if (i32.load8_u (local.get $ptr)) (then
+        (i32.store8 (local.get $ptr)
+          (i32.add (i32.load8_u (local.get $ptr)) (i32.const -1))
+        )
+        (call $putChar (local.get $ptr))
+        (br 1)
+      ))
+    )
+  )
+  (data $mem (i32.const 0x7534)
+    "\01"                                  ;; 00007530:     .
+  )
 )

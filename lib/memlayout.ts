@@ -1,4 +1,4 @@
-import type { Ast, Dependencies, MemoryLayout } from './interfaces.ts';
+import type { Ast, MemoryLayout } from './interfaces.ts';
 
 
 class MemoryDistributor {

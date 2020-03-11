@@ -1,8 +1,8 @@
-export type Token = [
-	'+' | '-' | '<' | '>' | ',' | '.' | '[' | ']',
-	number?,
-	number?
-];
+export interface Token {
+	literal: '+' | '-' | '<' | '>' | ',' | '.' | '[' | ']';
+	sourceLine?: number;
+	sourceCol?: number;
+};
 
 export namespace Ast {
 	export interface AstNode {
@@ -84,15 +84,15 @@ export interface MemoryLayout {
 	}
 }
 
-export type SourceMappingSegment = [
+export type RawMappingLine = [
 	/** Generated column */
 	number,
-	/** Original file index */
-	number,
-	/** Original line number */
-	number,
-	/** Original column number */
-	number,
-];
+	Token
+][]
 
-export type SourceMapping = Record</** Generated lineno */ number, SourceMappingSegment[]>;
+export type RawMapping = RawMappingLine[]; // Actually Record<number, RawMapping>
+
+export interface CodeGenReturn {
+	result: string;
+	rawMapping: RawMapping;
+}

@@ -1,4 +1,4 @@
-import type * as Ast from './ast.ts';
+import type { Ast } from './interfaces.ts';
 
 export function optimize(ast: Ast.Program): void {
 	optimizationPass(ast);
@@ -25,12 +25,14 @@ function optimizationPass(astContainer: Ast.Container): void {
 			continue;
 		}
 
-		if (canBeMerged(astNode, nextNode)) {
-			astNode.value += nextNode.value;
-			astNode.tokens.push(...nextNode.tokens);
-			body.splice(i + 1, 1);
-			i++;
-			continue;
+		if (nextNode && 'value' in nextNode && 'value' in astNode) {
+			if (canBeMerged(astNode, nextNode)) {
+				astNode.value += nextNode.value;
+				astNode.tokens.push(...nextNode.tokens);
+				body.splice(i + 1, 1);
+				i++;
+				continue;
+			}
 		}
 
 		if (currentCanBeRemoved(astNode, nextNode)) {
@@ -112,12 +114,7 @@ function nextCanBeRemoved(currentNode: Ast.Instruction, nextNode: Ast.Instructio
 	return false;
 }
 
-function canBeMerged(currentNode: Ast.Instruction, nextNode: Ast.Instruction | null): boolean {
-	if (nextNode === null) {
-		// Cannot merge null with anything
-		return false;
-	}
-
+function canBeMerged(currentNode: Ast.Instruction, nextNode: Ast.Instruction) {
 	if (currentNode.type === 'set' || currentNode.type === 'incr') {
 		if (nextNode.type === 'incr') {
 			return true;

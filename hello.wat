@@ -166,8 +166,7 @@
     )
     (call $putChar (local.get $ptr))
   )
-  (data (i32.const 0x7534)
+  (data $mem (i32.const 0x7534)
     "\01"                                  ;; 00007530:     .
   )
 )
-
