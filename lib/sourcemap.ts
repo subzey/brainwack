@@ -54,12 +54,29 @@ function mappingForLine(deltaEncoder: DeltaEncoder, line: RawMappingLine) {
 		sourceMappingTuples.push([genCol, 0, token.sourceLine, token.sourceCol]);
 	}
 	sourceMappingTuples.sort(sortFn);
-	const asDeltas = sourceMappingTuples.map(v => deltaEncoder.encode(v));
+	const filtered = filterConsecutive(sourceMappingTuples);
+	const asDeltas = filtered.map(v => deltaEncoder.encode(v));
 	return asDeltas.map(vlq).join(',');
 }
 
+function filterConsecutive(sourceMappingTuples: SourceMappingTuple[]): SourceMappingTuple[] {
+	const rv: SourceMappingTuple[] = [];
+	if (sourceMappingTuples.length === 0) {
+		return rv;
+	}
+	rv.push(sourceMappingTuples[0]);
+	for (let i = 1; i < sourceMappingTuples.length; i++) {
+		const current = sourceMappingTuples[i];
+		const prev = sourceMappingTuples[i-1];
+		if (current[0] !== prev[0] || current[1] !== prev[1] || current[2] !== prev[2]) {
+			rv.push(current);
+		}
+	}
+	return rv;
+}
+
 const base64Alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-function vlq<T>(seq: number[]): string {
+function vlq(seq: number[]): string {
 	let rv = '';
 	for (const v of seq) {
 		let signPadded = v >= 0 ? v * 2 : 1 - v * 2;

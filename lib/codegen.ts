@@ -237,9 +237,9 @@ class OutputGenerator {
 					// Supply the last token, only if it's not the same as the first one
 					this._line(`(br 1)`, instr.tokens.slice(-1));
 					this._indent(-1);
-					this._line(`))`, instr.tokens.slice(-1));
+					this._line(`))`, instr.tokens.slice(0, -1));
 					this._indent(-1);
-					this._line(`)`, instr.tokens.slice(-1));
+					this._line(`)`, instr.tokens.slice(0, -1));
 					break;
 				default:
 					throw new Error('unreachable');

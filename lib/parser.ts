@@ -5,7 +5,6 @@ export function parse(tokens: Iterable<Token>): Ast.Program {
 	const containerStack: (Ast.Program | Ast.Instruction & Ast.Container)[] = [program];
 
 	for (const token of tokens) {
-		console.log(token);
 		const container = containerStack[containerStack.length - 1];
 
 		switch (token.literal) {
