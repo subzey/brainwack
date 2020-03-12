@@ -7,7 +7,7 @@ do
 		--sourcemap ${base}.wat.map
 
 	echo "Optimizing and converting to binary..."
-	npx -p binaryen wasm-opt -O4 -c ${base}.wat -o ${base}.wasm
+	wasm-opt -O4 -c ${base}.wat -o ${base}.wasm
 	wc -c ${base}.wasm
 
 	echo "Running..."

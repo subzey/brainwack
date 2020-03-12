@@ -183,26 +183,32 @@ class OutputGenerator {
 		if (this._mem.snapshot.byteLength === 0) {
 			return;
 		}
-		this._line(`(data $mem (i32.const 0x${this._mem.snapshot.byteOffset.toString(16)})`);
-		this._indent(+1);
 		let min = this._mem.snapshot.byteOffset;
 		let max = min + this._mem.snapshot.byteLength;
+		let contents = '';
+		for (let ptr = min; ptr < max; ptr++) {
+			contents += '\\' + this._mem.snapshot[ptr - min].toString(16).padStart(2, '0');
+		}
+
+		this._line(`(data $mem (i32.const 0x${this._mem.snapshot.byteOffset.toString(16)})`);
+		this._indent(+1);
+		this._line(`;; Binaryen cannot parse multiline data strings :(`);
+		this._line(`"${contents}"`);
+
 		for (let hi = min - min % 16; hi < max; hi += 16) {
 			const offset = hi.toString(16).padStart(8, '0');
-			let leadingPadding = '';
-			let trailingPadding = '';
-			let contents = '';
 			let plaintext = '';
+			let hex = '';
 			for (let lo = 0; lo < 16; lo++) {
 				const ptr = hi + lo;
-				if (ptr < min) {
-					leadingPadding += '\u0020\u0020\u0020';
+				if (ptr >= max) {
+					hex += '   ';
+				} else if (ptr < min) {
 					plaintext += ' ';
-				} else if (ptr >= max) {
-					trailingPadding += '\u0020\u0020\u0020';
+					hex += '   ';
 				} else {
 					const v = this._mem.snapshot[ptr - min];
-					contents += '\\' + v.toString(16).padStart(2, '0');
+					hex += v.toString(16).padStart(2, '0') + ' ';
 					if (v > 0x1F && v < 0x7F) {
 						plaintext += String.fromCharCode(v);
 					} else {
@@ -210,7 +216,7 @@ class OutputGenerator {
 					}
 				}
 			}
-			this._line(`${leadingPadding}"${contents}"${trailingPadding} ;; ${offset}: ${plaintext}`);
+			this._line(`;; ${offset}: ${hex} ${plaintext}`);
 		}
 		this._indent(-1);
 		this._line(`)`);
