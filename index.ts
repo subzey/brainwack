@@ -30,6 +30,13 @@ Compilation options:
 	Deno.exit(1);
 }
 
+async function writeUtf8(file: Deno.File, string: string): Promise<void> {
+	let binarySlice = new TextEncoder().encode(string);
+	while (binarySlice.byteLength > 0) {
+		binarySlice = binarySlice.subarray(await file.write(binarySlice))
+	}
+}
+
 async function main() {
 	const { result, sourceMap } = compile(
 		await readFileStr(args._[0]),
@@ -40,14 +47,16 @@ async function main() {
 	);
 
 	if (args.sourcemap) {
-		Deno.writeFile(args.sourcemap, new TextEncoder().encode(sourceMap));
+		const sourceMapFile = await Deno.open(args.sourcemap, { write: true, truncate: true, create: true });
+		writeUtf8(sourceMapFile, sourceMap);
 	}
 
-	if (args.output) {
-		Deno.writeFile(args.output, new TextEncoder().encode(result));
-	} else {
-		Deno.stdout.write(new TextEncoder().encode(result));
-	}
+	const outputFile = (args.output
+		? await Deno.open(args.output, { write: true, truncate: true, create: true })
+		: Deno.stdout
+	);
+
+	writeUtf8(outputFile, result);
 }
 
 main();
